@@ -40,8 +40,8 @@ export default class Sight {
     this.updateCanvas = true
 
     this.canvas.onmousemove = (event: MouseEvent) => {
-      this.mouse.x = event.clientX
-      this.mouse.y = event.clientY
+      this.mouse.x = event.clientX / (window.devicePixelRatio || 1)
+      this.mouse.y = event.clientY / (window.devicePixelRatio || 1)
       this.updateCanvas = true
     }
     console.log(this)

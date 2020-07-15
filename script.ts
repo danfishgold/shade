@@ -25,6 +25,14 @@ async function main() {
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement
 
+  // https://www.html5rocks.com/en/tutorials/canvas/hidpi/
+  const dpr = window.devicePixelRatio || 1
+  const rect = canvas.getBoundingClientRect()
+  canvas.width = rect.width * dpr
+  canvas.height = rect.height * dpr
+  const ctx = canvas.getContext('2d')
+  ctx.scale(dpr, dpr)
+
   const sight = new Sight(glyphSegments, canvas)
   sight.drawLoop()
 }
