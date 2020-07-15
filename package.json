@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "live": "parcel index.html",
+    "build": "parcel build index.html"
+  },
+  "dependencies": {
+    "parcel": "^1.12.4"
+  },
+  "devDependencies": {
+    "typescript": "^3.9.6"
+  }
+}
