@@ -90,3 +90,19 @@ export function pathSegments(pathPoints: Point[]): Segment[] {
     }
   })
 }
+
+export function boundingBox(
+  glyphs: Glyph[]
+): { x0: number; y0: number; width: number; height: number } {
+  const x1 = Math.min(...glyphs.map((g) => g.boundingBox.x1))
+  const y1 = Math.min(...glyphs.map((g) => g.boundingBox.y1))
+  const x2 = Math.max(...glyphs.map((g) => g.boundingBox.x2))
+  const y2 = Math.max(...glyphs.map((g) => g.boundingBox.y2))
+
+  return {
+    x0: x1,
+    y0: y1,
+    width: x2 - x1,
+    height: y2 - y1,
+  }
+}
