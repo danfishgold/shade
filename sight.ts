@@ -173,14 +173,20 @@ export default class Sight {
     // }
 
     // Sight Polygons
-    const fuzzyRadius = 10
-    const origins = [this.mouse].concat([])
+    const fuzzyRadius = 5
+    const ringCount = 0
+    const origins = [this.mouse].concat(
+      Array(ringCount)
+        .fill(null)
+        .map((_, idx) => {
+          const angle = (Math.PI * 2 * idx) / ringCount
+          return {
+            x: this.mouse.x + Math.cos(angle) * fuzzyRadius,
+            y: this.mouse.y + Math.sin(angle) * fuzzyRadius,
+          }
+        })
+    )
     const polygons = origins.map((origin) => this.getSightPolygon(origin))
-    // for (var angle = 0; angle < Math.PI * 2; angle += (Math.PI * 2) / 4) {
-    //   var dx = Math.cos(angle) * fuzzyRadius
-    //   var dy = Math.sin(angle) * fuzzyRadius
-    //   polygons.push(getSightPolygon(mouse.x + dx, mouse.y + dy))
-    // }
 
     // DRAW AS A GIANT POLYGON
     for (var i = 0; i < polygons.length; i++) {
