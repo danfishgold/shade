@@ -1,3 +1,5 @@
+import { Point, Segment } from './sight'
+
 export interface Glyph {
   commands: Array<Command>
   boundingBox: {
@@ -53,20 +55,38 @@ function glyphToPathD(glyph: Glyph): string {
   return glyph.commands.map(commandToString).join(' ')
 }
 
-export function glyphToSVGPath(glyph: Glyph): SVGPathElement {
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-  path.setAttribute('d', glyphToPathD(glyph))
-  return path
+export function glyphToSVGPaths(glyph: Glyph): SVGPathElement[] {
+  const pathD = glyphToPathD(glyph)
+  const pathDs = pathD
+    .split(' Z')
+    .slice(0, -1)
+    .map((segment) => segment + 'Z')
+
+  return pathDs.map((d) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', d)
+    return path
+  })
 }
 
-export function SVGPathToPoints(
+export function svgPathToPoints(
   path: SVGPathElement,
-  pointCount: number
-): DOMPoint[] {
+  pointDistance: number
+): Point[] {
   const length = path.getTotalLength()
+  const pointCount = Math.ceil(length / pointDistance)
   return Array(pointCount)
     .fill(null)
     .map((_, pointIndex) =>
       path.getPointAtLength((pointIndex / pointCount) * length)
     )
+}
+
+export function pathSegments(pathPoints: Point[]): Segment[] {
+  return pathPoints.map((_, index: number) => {
+    return {
+      a: pathPoints[index],
+      b: pathPoints[(index + 1) % pathPoints.length],
+    }
+  })
 }
