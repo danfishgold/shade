@@ -1,3 +1,6 @@
+import { Glyph } from './glyphs'
+import * as Glyphs from './glyphs'
+
 export interface Point {
   x: number
   y: number
@@ -15,13 +18,37 @@ interface Intersection {
 }
 
 export default class Sight {
+  private glyphPoints: Point[][]
   private segments: Segment[]
   private uniquePoints: Point[]
   private canvas: HTMLCanvasElement
   private mouse: Point
   private updateCanvas: boolean
 
-  constructor(segments: Segment[], canvas: HTMLCanvasElement) {
+  constructor(glyphs: Glyph[], canvas: HTMLCanvasElement) {
+    const boundingBox = Glyphs.boundingBox(glyphs)
+    const yScale = canvas.height / boundingBox.height
+    const xScale = canvas.width / boundingBox.width
+    const scale = 0.5 * Math.min(xScale, yScale)
+    const x0 =
+      canvas.width / 2 - scale * (boundingBox.width / 2 + boundingBox.x0)
+    const y0 =
+      canvas.height / 2 - scale * (boundingBox.height / 2 + boundingBox.y0)
+
+    this.glyphPoints = glyphs
+      .flatMap(Glyphs.glyphToSVGPaths)
+      .map((path) => Glyphs.svgPathToPoints(path, 2))
+      .map((path: Point[]): Point[] => {
+        return path.map(
+          ({ x, y }: Point): Point => {
+            return {
+              x: (x0 + x * scale) / (window.devicePixelRatio || 1),
+              y: (y0 + y * scale) / (window.devicePixelRatio || 1),
+            }
+          }
+        )
+      })
+    const glyphSegments = this.glyphPoints.flatMap(Glyphs.pathSegments)
     this.segments = [
       { a: { x: 0, y: 0 }, b: { x: canvas.width, y: 0 } },
       {
@@ -33,7 +60,7 @@ export default class Sight {
         b: { x: 0, y: canvas.height },
       },
       { a: { x: 0, y: canvas.height }, b: { x: 0, y: 0 } },
-    ].concat(segments)
+    ].concat(glyphSegments)
     this.uniquePoints = this.uniquePointsFromSegments(this.segments)
     this.canvas = canvas
     this.mouse = { x: canvas.width / 2, y: canvas.height / 2 }
@@ -162,37 +189,45 @@ export default class Sight {
     const ctx = this.canvas.getContext('2d')
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    // // Draw segments
-    // ctx.strokeStyle = '#999'
-    // for (var i = 0; i < segments.length; i++) {
-    //   var seg = segments[i]
-    //   ctx.beginPath()
-    //   ctx.moveTo(seg.a.x, seg.a.y)
-    //   ctx.lineTo(seg.b.x, seg.b.y)
-    //   ctx.stroke()
-    // }
+    // Draw glyphs
+    this.glyphPoints.forEach((glyph, idx) => {
+      ctx.fillStyle = idx == 1 ? '#000' : '#888'
+      ctx.beginPath()
+      ctx.moveTo(glyph[0].x, glyph[0].y)
+      for (const { x, y } of glyph.slice(1)) {
+        ctx.lineTo(x, y)
+      }
+      ctx.fill()
+    })
 
     // Sight Polygons
     const fuzzyRadius = 5
-    const ringCount = 0
-    const origins = [this.mouse].concat(
-      Array(ringCount)
-        .fill(null)
-        .map((_, idx) => {
-          const angle = (Math.PI * 2 * idx) / ringCount
-          return {
-            x: this.mouse.x + Math.cos(angle) * fuzzyRadius,
-            y: this.mouse.y + Math.sin(angle) * fuzzyRadius,
-          }
-        })
-    )
-    const polygons = origins.map((origin) => this.getSightPolygon(origin))
+    const ringCount = 6
+    const origins = Array(ringCount)
+      .fill(null)
+      .map((_, idx) => {
+        const angle = (Math.PI * 2 * idx) / ringCount
+        return {
+          x: this.mouse.x + Math.cos(angle) * fuzzyRadius,
+          y: this.mouse.y + Math.sin(angle) * fuzzyRadius,
+        }
+      })
+      .concat(this.mouse)
 
-    // DRAW AS A GIANT POLYGON
-    for (var i = 0; i < polygons.length; i++) {
-      drawPolygon(polygons[i], ctx, 'rgba(255,255,255,0.2)')
-    }
-    drawPolygon(polygons[0], ctx, '#fff')
+    const polygons = origins.map((origin) => this.getSightPolygon(origin))
+    const colors = [
+      'magenta',
+      'cyan',
+      'yellow',
+      'magenta',
+      'cyan',
+      'yellow',
+      'white',
+    ]
+    // const colors = ['red', 'cyan', 'red', 'cyan', 'red', 'cyan', 'white']
+    polygons.forEach((polygon, idx) => {
+      drawPolygon(polygon, ctx, colors[idx])
+    })
 
     // Draw red dots
     ctx.fillStyle = '#dd3838'
