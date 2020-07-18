@@ -1,10 +1,18 @@
+extern crate web_sys;
+
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
+// macro_rules! log {
+//     ( $( $t:tt )* ) => {
+//         web_sys::console::log_1(&format!( $( $t )* ).into());
+//     }
+// }
+
 #[derive(Debug, Copy, Clone)]
 pub struct Point {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 impl PartialEq for Point {
@@ -23,10 +31,11 @@ impl Hash for Point {
 }
 
 pub struct Segment {
-    a: Point,
-    b: Point,
+    pub a: Point,
+    pub b: Point,
 }
 
+#[derive(Debug, Copy, Clone)]
 struct Intersection {
     x: f64,
     y: f64,
@@ -48,13 +57,13 @@ impl Sight {
     }
 
     pub fn sight_polygon(&self, source: Point) -> Vec<Point> {
-        let unique_angles = (&self.unique_points).iter().flat_map(|pt: &Point| {
+        let angles = (&self.unique_points).iter().flat_map(|pt: &Point| {
             let angle = f64::atan2(pt.y - source.y, pt.x - source.x);
             vec![angle - 0.00001, angle + 0.00001]
         });
 
         let mut angled_intersects: Vec<(Intersection, f64)> = vec![];
-        for angle in unique_angles {
+        for angle in angles {
             let dx = f64::cos(angle);
             let dy = f64::sin(angle);
 

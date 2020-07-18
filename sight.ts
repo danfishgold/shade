@@ -1,5 +1,6 @@
 import { Glyph } from './glyphs'
 import * as Glyphs from './glyphs'
+import { WasmSight, rust_memory } from './crate/Cargo.toml'
 
 export interface Point {
   x: number
@@ -11,19 +12,12 @@ export interface Segment {
   b: Point
 }
 
-interface Intersection {
-  x: number
-  y: number
-  param: number
-}
-
 export default class Sight {
   private glyphPoints: Point[][]
-  private segments: Segment[]
-  private uniquePoints: Point[]
   private canvas: HTMLCanvasElement
   private mouse: Point
   private updateCanvas: boolean
+  private sight: module.WasmSight
 
   constructor(glyphs: Glyph[], canvas: HTMLCanvasElement) {
     const boundingBox = Glyphs.boundingBox(glyphs)
@@ -49,7 +43,7 @@ export default class Sight {
         )
       })
     const glyphSegments = this.glyphPoints.flatMap(Glyphs.pathSegments)
-    this.segments = [
+    const segments = [
       { a: { x: 0, y: 0 }, b: { x: canvas.width, y: 0 } },
       {
         a: { x: canvas.width, y: 0 },
@@ -61,7 +55,20 @@ export default class Sight {
       },
       { a: { x: 0, y: canvas.height }, b: { x: 0, y: 0 } },
     ].concat(glyphSegments)
-    this.uniquePoints = this.uniquePointsFromSegments(this.segments)
+    this.sight = WasmSight.new()
+    const segmentComponents = new Float64Array(
+      rust_memory().buffer,
+      this.sight.segment_components(),
+      segments.length * 4
+    )
+    segments.forEach((segment, index) => {
+      segmentComponents[index * 4 + 0] = segment.a.x
+      segmentComponents[index * 4 + 1] = segment.a.y
+      segmentComponents[index * 4 + 2] = segment.b.x
+      segmentComponents[index * 4 + 3] = segment.b.y
+    })
+    this.sight.initialize_sight(segments.length)
+
     this.canvas = canvas
     this.mouse = { x: canvas.width / 2, y: canvas.height / 2 }
     this.updateCanvas = true
@@ -71,117 +78,6 @@ export default class Sight {
       this.mouse.y = event.clientY / (window.devicePixelRatio || 1)
       this.updateCanvas = true
     }
-    console.log(this)
-  }
-
-  private uniquePointsFromSegments(segments: Segment[]): Point[] {
-    const points = segments.flatMap((seg: Segment) => [seg.a, seg.b])
-    const pointSet = new Set()
-    return points.filter(function (p: Point) {
-      const key = `${p.x},${p.y}`
-      if (pointSet.has(key)) {
-        return false
-      } else {
-        pointSet.add(key)
-        return true
-      }
-    })
-  }
-
-  private getIntersection(ray: Segment, segment: Segment): Intersection | null {
-    // RAY in parametric: Point + Delta*T1
-    const r_px = ray.a.x
-    const r_py = ray.a.y
-    const r_dx = ray.b.x - ray.a.x
-    const r_dy = ray.b.y - ray.a.y
-
-    // SEGMENT in parametric: Point + Delta*T2
-    const s_px = segment.a.x
-    const s_py = segment.a.y
-    const s_dx = segment.b.x - segment.a.x
-    const s_dy = segment.b.y - segment.a.y
-
-    // Are they parallel? If so, no intersect
-    const r_mag = Math.sqrt(r_dx * r_dx + r_dy * r_dy)
-    const s_mag = Math.sqrt(s_dx * s_dx + s_dy * s_dy)
-    if (r_dx / r_mag == s_dx / s_mag && r_dy / r_mag == s_dy / s_mag) {
-      // Unit vectors are the same.
-      return null
-    }
-
-    // SOLVE FOR T1 & T2
-    // r_px+r_dx*T1 = s_px+s_dx*T2 && r_py+r_dy*T1 = s_py+s_dy*T2
-    // ==> T1 = (s_px+s_dx*T2-r_px)/r_dx = (s_py+s_dy*T2-r_py)/r_dy
-    // ==> s_px*r_dy + s_dx*T2*r_dy - r_px*r_dy = s_py*r_dx + s_dy*T2*r_dx - r_py*r_dx
-    // ==> T2 = (r_dx*(s_py-r_py) + r_dy*(r_px-s_px))/(s_dx*r_dy - s_dy*r_dx)
-    const T2 =
-      (r_dx * (s_py - r_py) + r_dy * (r_px - s_px)) /
-      (s_dx * r_dy - s_dy * r_dx)
-    const T1 = (s_px + s_dx * T2 - r_px) / r_dx
-
-    // Must be within parametic whatevers for RAY/SEGMENT
-    if (T1 < 0) return null
-    if (T2 < 0 || T2 > 1) return null
-
-    // Return the POINT OF INTERSECTION
-    return {
-      x: r_px + r_dx * T1,
-      y: r_py + r_dy * T1,
-      param: T1,
-    }
-  }
-
-  private getSightPolygon(source: Point): Intersection[] {
-    // Get all angles
-    const uniqueAngles = this.uniquePoints.flatMap((pt) => {
-      const angle = Math.atan2(pt.y - source.y, pt.x - source.x)
-      return [angle - 0.00001, angle, angle + 0.00001]
-    })
-
-    // RAYS IN ALL DIRECTIONS
-    let angledIntersects: [Intersection, number][] = []
-    uniqueAngles.forEach((angle) => {
-      // Calculate dx & dy from angle
-      const dx = Math.cos(angle)
-      const dy = Math.sin(angle)
-
-      // Ray from center of screen to mouse
-      const ray = {
-        a: source,
-        b: { x: source.x + dx, y: source.y + dy },
-      }
-
-      // Find CLOSEST intersection
-      let closestIntersect = null
-      this.segments.forEach((segment) => {
-        const intersect = this.getIntersection(ray, segment)
-        if (!intersect) {
-          return
-        }
-        if (!closestIntersect || intersect.param < closestIntersect.param) {
-          closestIntersect = intersect
-        }
-      })
-
-      // Intersect angle
-      if (!closestIntersect) {
-        return
-      }
-
-      // Add to list of intersects
-      angledIntersects.push([closestIntersect, angle])
-    })
-
-    // Sort intersects by angle
-    angledIntersects = angledIntersects.sort(function (
-      [_1, angle1],
-      [_2, angle2]
-    ) {
-      return angle1 - angle2
-    })
-
-    // Polygon is intersects, in order of angle
-    return angledIntersects.map(([intersect, _]) => intersect)
   }
 
   private draw() {
@@ -191,7 +87,7 @@ export default class Sight {
 
     // Draw glyphs
     this.glyphPoints.forEach((glyph, idx) => {
-      ctx.fillStyle = idx == 1 ? '#000' : '#888'
+      ctx.fillStyle = idx == 1 ? '#000' : '#ddd'
       ctx.beginPath()
       ctx.moveTo(glyph[0].x, glyph[0].y)
       for (const { x, y } of glyph.slice(1)) {
@@ -202,8 +98,8 @@ export default class Sight {
 
     // Sight Polygons
     const fuzzyRadius = 5
-    const ringCount = 6
-    const origins = Array(ringCount)
+    const ringCount = 3
+    const sources = Array(ringCount)
       .fill(null)
       .map((_, idx) => {
         const angle = (Math.PI * 2 * idx) / ringCount
@@ -214,24 +110,22 @@ export default class Sight {
       })
       .concat(this.mouse)
 
-    const polygons = origins.map((origin) => this.getSightPolygon(origin))
-    const colors = [
-      'magenta',
-      'cyan',
-      'yellow',
-      'magenta',
-      'cyan',
-      'yellow',
-      'white',
-    ]
+    const colors = ['magenta', 'cyan', 'yellow', 'white']
     // const colors = ['red', 'cyan', 'red', 'cyan', 'red', 'cyan', 'white']
-    polygons.forEach((polygon, idx) => {
+    sources.forEach((source, idx) => {
+      this.sight.generate_polygon(source.x, source.y)
+      const polygonSize = this.sight.polygon_size()
+      const polygon = new Float64Array(
+        rust_memory().buffer,
+        this.sight.polygon(),
+        polygonSize * 2
+      )
       drawPolygon(polygon, ctx, colors[idx])
     })
 
     // Draw red dots
     ctx.fillStyle = '#dd3838'
-    origins.map((origin) => {
+    sources.map((origin) => {
       ctx.beginPath()
       ctx.arc(origin.x, origin.y, 2, 0, 2 * Math.PI, false)
       ctx.fill()
@@ -248,21 +142,15 @@ export default class Sight {
 }
 
 function drawPolygon(
-  polygon: Intersection[],
+  polygon: Float64Array,
   ctx: CanvasRenderingContext2D,
   fillStyle: string
 ) {
   ctx.fillStyle = fillStyle
   ctx.beginPath()
-  ctx.moveTo(polygon[0].x, polygon[0].y)
-  polygon.slice(1).forEach(({ x, y }) => {
-    ctx.lineTo(x, y)
-  })
+  ctx.moveTo(polygon[0], polygon[1])
+  for (let i = 2; i < polygon.length; i += 2) {
+    ctx.lineTo(polygon[i], polygon[i + 1])
+  }
   ctx.fill()
 }
-
-window.requestAnimationFrame =
-  window.requestAnimationFrame ||
-  window.webkitRequestAnimationFrame ||
-  window.mozRequestAnimationFrame ||
-  window.msRequestAnimationFrame

@@ -1,8 +1,7 @@
 #[macro_use]
 extern crate cfg_if;
-
 extern crate wasm_bindgen;
-extern crate web_sys;
+
 use wasm_bindgen::prelude::*;
 
 mod sight;
@@ -29,55 +28,81 @@ cfg_if! {
     }
 }
 
-// Called by our JS entry point to run the example
 #[wasm_bindgen]
-pub fn run() -> Result<(), JsValue> {
-    // If the `console_error_panic_hook` feature is enabled this will set a panic hook, otherwise
-    // it will do nothing.
-    set_panic_hook();
-
-    // Use `web_sys`'s global `window` function to get a handle on the global
-    // window object.
-    let window = web_sys::window().expect("no global `window` exists");
-    let document = window.document().expect("should have a document on window");
-    let body = document.body().expect("document should have a body");
-
-    // Manufacture the element we're gonna append
-    let val = document.create_element("p")?;
-    val.set_inner_html("Hello from Rust, WebAssembly, and Parcel!");
-
-    body.append_child(&val)?;
-
-    Ok(())
+pub struct WasmSight {
+    sight: Option<sight::Sight>,
+    polygon_components: Vec<f64>,
+    segment_components: Vec<f64>,
 }
 
 #[wasm_bindgen]
-pub struct Ugh {
-    vector: Vec<f64>,
-}
+impl WasmSight {
+    /*
+    order of operations:
 
-#[wasm_bindgen]
-impl Ugh {
-    #[wasm_bindgen(constructor)]
-    pub fn annoying() -> Ugh {
-        Ugh {
-            vector: vec![1.0, 2.0, 3.5, 4.2, 3.1415],
+    1. initialize (WasmSight::new)
+    2. get the pointer to segment components (WasmSight::segment_components)
+    3. fill it with segments (a.x, a.y, b.x, b.y)
+    4. WasmSight::initialize_sight, passing in the number of segments
+    5. WasmSight::generate_polygon, passing in the source (source.x, source.y)
+    6. check WasmSight::polygon_size to know how big the array should be
+    7. get the pointer to the array of polygon points with WasmSight::polygon
+    */
+
+    pub fn new() -> WasmSight {
+        set_panic_hook();
+        WasmSight {
+            sight: None,
+            polygon_components: vec![],
+            segment_components: vec![],
         }
     }
-    pub fn pointer(&mut self) -> *mut f64 {
-        self.vector.as_mut_ptr()
+
+    pub fn segment_components(&mut self) -> *mut f64 {
+        self.segment_components.as_mut_ptr()
     }
 
-    pub fn length(&self) -> usize {
-        self.vector.len()
+    pub fn initialize_sight(&mut self, segment_count: usize) {
+        unsafe {
+            self.segment_components = Vec::from_raw_parts(
+                self.segment_components.as_mut_ptr(),
+                segment_count * 4,
+                segment_count * 4,
+            );
+        }
+        let mut segments = vec![];
+        for segment_index in 0..segment_count {
+            segments.push(sight::Segment {
+                a: sight::Point {
+                    x: self.segment_components[segment_index * 4 + 0],
+                    y: self.segment_components[segment_index * 4 + 1],
+                },
+                b: sight::Point {
+                    x: self.segment_components[segment_index * 4 + 2],
+                    y: self.segment_components[segment_index * 4 + 3],
+                },
+            })
+        }
+        self.sight = Some(sight::Sight::new(segments));
     }
 
-    pub fn get(&self, idx: usize) -> f64 {
-        self.vector[idx]
+    pub fn generate_polygon(&mut self, source_x: f64, source_y: f64) {
+        if let Some(sight) = &self.sight {
+            let source = sight::Point {
+                x: source_x,
+                y: source_y,
+            };
+            let polygon = sight.sight_polygon(source);
+            self.polygon_components = polygon.iter().flat_map(|pt| vec![pt.x, pt.y]).collect()
+        }
     }
 
-    pub fn set(&mut self, idx: usize, value: f64) {
-        self.vector[idx] = value
+    pub fn polygon(&self) -> *const f64 {
+        self.polygon_components.as_ptr()
+    }
+
+    pub fn polygon_size(&self) -> usize {
+        self.polygon_components.len() / 2
     }
 }
 
