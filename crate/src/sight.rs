@@ -149,26 +149,3 @@ fn closest_intersect(segments: &Vec<Segment>, ray: &Segment) -> Option<Intersect
     closest
 }
 
-fn main() {
-    let sight = Sight::new(vec![
-        Segment {
-            a: Point { x: 0.0, y: 0.0 },
-            b: Point { x: 1.0, y: 0.0 },
-        },
-        Segment {
-            a: Point { x: 1.0, y: 1.0 },
-            b: Point { x: 1.0, y: 0.0 },
-        },
-        Segment {
-            a: Point { x: 0.0, y: 1.0 },
-            b: Point { x: 1.0, y: 1.0 },
-        },
-        Segment {
-            a: Point { x: 0.0, y: 0.0 },
-            b: Point { x: 0.0, y: 1.0 },
-        },
-    ]);
-
-    let polygon = sight.sight_polygon(Point { x: 0.5, y: 0.5 });
-    println!("{:?}", polygon.len());
-}
