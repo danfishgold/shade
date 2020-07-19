@@ -46,21 +46,31 @@ export default class SightCanvas {
       .flatMap(Glyphs.polygonSegments)
     console.log(`${glyphSegments.length} segments`)
 
-    const segments = glyphSegments.concat(this.borderSegments())
-
+    const borders = this.borderSegments()
     const sight = WasmSight.new()
-    const segmentComponents = new Float64Array(
+    const innerSegmentComponents = new Float64Array(
       rust_memory().buffer,
-      sight.segment_components(),
-      segments.length * 4
+      sight.inner_segment_components(glyphSegments.length),
+      glyphSegments.length * 4
     )
-    segments.forEach((segment, index) => {
-      segmentComponents[index * 4 + 0] = segment.a.x
-      segmentComponents[index * 4 + 1] = segment.a.y
-      segmentComponents[index * 4 + 2] = segment.b.x
-      segmentComponents[index * 4 + 3] = segment.b.y
+    const borderSegmentComponents = new Float64Array(
+      rust_memory().buffer,
+      sight.border_segment_components(borders.length),
+      borders.length * 4
+    )
+    glyphSegments.forEach((segment, index) => {
+      innerSegmentComponents[index * 4 + 0] = segment.a.x
+      innerSegmentComponents[index * 4 + 1] = segment.a.y
+      innerSegmentComponents[index * 4 + 2] = segment.b.x
+      innerSegmentComponents[index * 4 + 3] = segment.b.y
     })
-    sight.initialize_sight(segments.length)
+    borders.forEach((segment, index) => {
+      borderSegmentComponents[index * 4 + 0] = segment.a.x
+      borderSegmentComponents[index * 4 + 1] = segment.a.y
+      borderSegmentComponents[index * 4 + 2] = segment.b.x
+      borderSegmentComponents[index * 4 + 3] = segment.b.y
+    })
+    sight.initialize_sight()
 
     return sight
   }

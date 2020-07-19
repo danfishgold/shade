@@ -43,24 +43,33 @@ struct Intersection {
 }
 
 pub struct Sight {
-    segments: Vec<Segment>,
-    unique_points: Vec<Point>,
+    inner_segments: Vec<Segment>,
+    border_segments: Vec<Segment>,
+    unique_inner_points: Vec<Point>,
+    unique_border_points: Vec<Point>,
 }
 
 impl Sight {
-    pub fn new(segments: Vec<Segment>) -> Sight {
-        let points = unique_points_from_segments(&segments);
+    pub fn new(inner_segments: Vec<Segment>, border_segments: Vec<Segment>) -> Sight {
+        let inner_points = unique_points_from_segments(&inner_segments);
+        let border_points = unique_points_from_segments(&border_segments);
         Sight {
-            segments: segments,
-            unique_points: points,
+            inner_segments: inner_segments,
+            border_segments: border_segments,
+            unique_inner_points: inner_points,
+            unique_border_points: border_points,
         }
     }
 
     pub fn sight_polygon(&self, source: Point) -> Vec<Point> {
-        let angles = (&self.unique_points).iter().flat_map(|pt: &Point| {
-            let angle = f64::atan2(pt.y - source.y, pt.x - source.x);
-            vec![angle - 0.00001, angle + 0.00001]
-        });
+        let angles = self
+            .unique_inner_points
+            .iter()
+            .chain(self.unique_border_points.iter())
+            .flat_map(|pt: &Point| {
+                let angle = f64::atan2(pt.y - source.y, pt.x - source.x);
+                vec![angle - 0.00001, angle + 0.00001]
+            });
 
         let mut angled_intersects: Vec<(Intersection, f64)> = vec![];
         for angle in angles {
@@ -75,7 +84,12 @@ impl Sight {
                 },
             };
 
-            if let Some(intersect) = closest_intersect(&self.segments, &ray) {
+            if let Some(intersect) = closest_intersect(
+                self.inner_segments
+                    .iter()
+                    .chain(self.border_segments.iter()),
+                &ray,
+            ) {
                 angled_intersects.push((intersect, angle))
             }
         }
@@ -93,18 +107,22 @@ impl Sight {
         // normal
         let n = Point { x: dy, y: -dx };
 
-        let sources = (&self.unique_points).iter().flat_map(|pt: &Point| {
-            vec![
-                Point {
-                    x: pt.x + 0.0001 * n.x,
-                    y: pt.y + 0.0001 * n.y,
-                },
-                Point {
-                    x: pt.x - 0.0001 * n.x,
-                    y: pt.y - 0.0001 * n.y,
-                },
-            ]
-        });
+        let sources = self
+            .unique_inner_points
+            .iter()
+            .chain(self.unique_border_points.iter())
+            .flat_map(|pt: &Point| {
+                vec![
+                    Point {
+                        x: pt.x + 0.0001 * n.x,
+                        y: pt.y + 0.0001 * n.y,
+                    },
+                    Point {
+                        x: pt.x - 0.0001 * n.x,
+                        y: pt.y - 0.0001 * n.y,
+                    },
+                ]
+            });
 
         let mut projected_intersects: Vec<(Intersection, f64)> = vec![];
         for source in sources {
@@ -116,7 +134,12 @@ impl Sight {
                 },
             };
 
-            if let Some(intersect) = closest_intersect(&self.segments, &ray) {
+            if let Some(intersect) = closest_intersect(
+                self.inner_segments
+                    .iter()
+                    .chain(self.border_segments.iter()),
+                &ray,
+            ) {
                 projected_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
             }
         }
@@ -176,14 +199,17 @@ fn get_intersection(ray: &Segment, segment: &Segment) -> Option<Intersection> {
 
 fn unique_points_from_segments(segments: &Vec<Segment>) -> Vec<Point> {
     let mut point_set = HashSet::new();
-    for segment in segments.iter() {
+    for segment in segments {
         point_set.insert(segment.a.clone());
         point_set.insert(segment.b.clone());
     }
     return point_set.into_iter().collect();
 }
 
-fn closest_intersect(segments: &Vec<Segment>, ray: &Segment) -> Option<Intersection> {
+fn closest_intersect<'a, Iter>(segments: Iter, ray: &Segment) -> Option<Intersection>
+where
+    Iter: Iterator<Item = &'a Segment>,
+{
     let mut closest: Option<Intersection> = None;
     for segment in segments {
         if let Some(intersect) = get_intersection(ray, segment) {
@@ -198,4 +224,3 @@ fn closest_intersect(segments: &Vec<Segment>, ray: &Segment) -> Option<Intersect
     }
     closest
 }
-

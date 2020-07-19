@@ -32,7 +32,8 @@ cfg_if! {
 pub struct WasmSight {
     sight: Option<sight::Sight>,
     polygon_components: Vec<f64>,
-    segment_components: Vec<f64>,
+    inner_segment_components: Vec<f64>,
+    border_segment_components: Vec<f64>,
 }
 
 #[wasm_bindgen]
@@ -54,36 +55,50 @@ impl WasmSight {
         WasmSight {
             sight: None,
             polygon_components: vec![],
-            segment_components: vec![],
+            inner_segment_components: vec![],
+            border_segment_components: vec![],
         }
     }
 
-    pub fn segment_components(&mut self) -> *mut f64 {
-        self.segment_components.as_mut_ptr()
+    pub fn inner_segment_components(&mut self, segment_count: usize) -> *mut f64 {
+        self.inner_segment_components = vec![0.0; segment_count * 4];
+        self.inner_segment_components.as_mut_ptr()
     }
 
-    pub fn initialize_sight(&mut self, segment_count: usize) {
-        unsafe {
-            self.segment_components = Vec::from_raw_parts(
-                self.segment_components.as_mut_ptr(),
-                segment_count * 4,
-                segment_count * 4,
-            );
-        }
-        let mut segments = vec![];
-        for segment_index in 0..segment_count {
-            segments.push(sight::Segment {
+    pub fn border_segment_components(&mut self, segment_count: usize) -> *mut f64 {
+        self.border_segment_components = vec![0.0; segment_count * 4];
+        self.border_segment_components.as_mut_ptr()
+    }
+
+    pub fn initialize_sight(&mut self) {
+        let mut inner_segments = vec![];
+        for segment_index in 0..self.inner_segment_components.len() / 4 {
+            inner_segments.push(sight::Segment {
                 a: sight::Point {
-                    x: self.segment_components[segment_index * 4 + 0],
-                    y: self.segment_components[segment_index * 4 + 1],
+                    x: self.inner_segment_components[segment_index * 4 + 0],
+                    y: self.inner_segment_components[segment_index * 4 + 1],
                 },
                 b: sight::Point {
-                    x: self.segment_components[segment_index * 4 + 2],
-                    y: self.segment_components[segment_index * 4 + 3],
+                    x: self.inner_segment_components[segment_index * 4 + 2],
+                    y: self.inner_segment_components[segment_index * 4 + 3],
                 },
             })
         }
-        self.sight = Some(sight::Sight::new(segments));
+
+        let mut border_segments = vec![];
+        for segment_index in 0..self.border_segment_components.len() / 4 {
+            border_segments.push(sight::Segment {
+                a: sight::Point {
+                    x: self.border_segment_components[segment_index * 4 + 0],
+                    y: self.border_segment_components[segment_index * 4 + 1],
+                },
+                b: sight::Point {
+                    x: self.border_segment_components[segment_index * 4 + 2],
+                    y: self.border_segment_components[segment_index * 4 + 3],
+                },
+            })
+        }
+        self.sight = Some(sight::Sight::new(inner_segments, border_segments));
     }
 
     pub fn generate_polygon(&mut self, source_x: f64, source_y: f64) {
