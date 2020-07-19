@@ -1,4 +1,14 @@
-import { Point, Segment } from './sight'
+import buttGlpyhs from './butts.json'
+
+export interface Point {
+  x: number
+  y: number
+}
+
+export interface Segment {
+  a: Point
+  b: Point
+}
 
 export interface Glyph {
   commands: Array<Command>
@@ -9,8 +19,6 @@ export interface Glyph {
     y2: number
   }
 }
-
-type Command = CommandC | CommandM | CommandL | CommandZ
 
 interface CommandC {
   type: 'C'
@@ -38,6 +46,18 @@ interface CommandZ {
   type: 'Z'
 }
 
+type Command = CommandC | CommandM | CommandL | CommandZ
+
+export async function fetchGlyphs(text: string): Promise<Glyph[]> {
+  if (text === 'butts') {
+    return buttGlpyhs as Glyph[]
+  }
+  const glyphResponse = await fetch(
+    `https://svg-font-stuff.glitch.me/glyphs/${text}`
+  )
+  return await glyphResponse.json()
+}
+
 function commandToString(command: Command): string {
   switch (command.type) {
     case 'Z':
@@ -51,22 +71,21 @@ function commandToString(command: Command): string {
   }
 }
 
-function glyphToPathD(glyph: Glyph): string {
+export function glyphToPathD(glyph: Glyph): string {
   return glyph.commands.map(commandToString).join(' ')
 }
 
-export function glyphToSVGPaths(glyph: Glyph): SVGPathElement[] {
-  const pathD = glyphToPathD(glyph)
-  const pathDs = pathD
+export function splitPathDIntoDisjointParts(d: string): string[] {
+  return d
     .split(' Z')
     .slice(0, -1)
     .map((segment) => segment + 'Z')
+}
 
-  return pathDs.map((d) => {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    path.setAttribute('d', d)
-    return path
-  })
+export function svgPathFromD(d: string): SVGPathElement {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', d)
+  return path
 }
 
 export function svgPathToPoints(

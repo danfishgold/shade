@@ -1,28 +1,13 @@
 import * as Glyphs from './glyphs'
-import Sight from './sight'
-import { Point } from './sight'
-import { Glyph } from './glyphs'
+import { Point, Glyph } from './glyphs'
+import SightCanvas from './sightCanvas'
 
 async function main() {
-  const text = 'butts'
-  const glyphResponse = await fetch(
-    `https://svg-font-stuff.glitch.me/glyphs/${text}`
-  )
-  const glyphs: Array<Glyph> = await glyphResponse.json()
-  // const glyphs = require('./butts.json')
-
   const canvas = document.getElementById('canvas') as HTMLCanvasElement
+  const glyphs = await Glyphs.fetchGlyphs('butts')
 
-  // https://www.html5rocks.com/en/tutorials/canvas/hidpi/
-  const dpr = window.devicePixelRatio || 1
-  const rect = canvas.getBoundingClientRect()
-  canvas.width = rect.width * dpr
-  canvas.height = rect.height * dpr
-  const ctx = canvas.getContext('2d')
-  ctx.scale(dpr, dpr)
-
-  const sight = new Sight(glyphs, canvas)
-  sight.drawLoop()
+  const sightCanvas = new SightCanvas(glyphs, canvas)
+  sightCanvas.drawLoop()
 }
 
 main()
