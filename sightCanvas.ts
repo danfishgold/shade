@@ -93,9 +93,11 @@ export default class SightCanvas {
     const ctx = this.canvas.getContext('2d')
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
+    const isometric = false
+
     // Draw Polygons
     const fuzzyRadius = 5
-    const ringCount = 3
+    const ringCount = isometric ? 0 : 3
     const sources = Array(ringCount)
       .fill(null)
       .map((_, idx) => {
@@ -107,10 +109,20 @@ export default class SightCanvas {
       })
       .concat(this.mouse)
 
-    const colors = ['magenta', 'cyan', 'yellow', 'white']
+    const colors = isometric
+      ? ['white']
+      : ['magenta', 'cyan', 'yellow', 'white']
     // const colors = ['red', 'cyan', 'red', 'cyan', 'red', 'cyan', 'white']
     sources.forEach((source, idx) => {
-      this.sight.generate_polygon(source.x, source.y)
+      if (isometric) {
+        const angle = Math.atan2(
+          source.y - this.canvas.height / 2 / this.dpr,
+          source.x - this.canvas.width / 2 / this.dpr
+        )
+        this.sight.generate_isometric_polygon(angle)
+      } else {
+        this.sight.generate_polygon(source.x, source.y)
+      }
       const polygonSize = this.sight.polygon_size()
       const polygon = new Float64Array(
         rust_memory().buffer,

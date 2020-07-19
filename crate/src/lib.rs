@@ -97,6 +97,13 @@ impl WasmSight {
         }
     }
 
+    pub fn generate_isometric_polygon(&mut self, angle: f64) {
+        if let Some(sight) = &self.sight {
+            let polygon = sight.isometric_sight(angle);
+            self.polygon_components = polygon.iter().flat_map(|pt| vec![pt.x, pt.y]).collect()
+        }
+    }
+
     pub fn polygon(&self) -> *const f64 {
         self.polygon_components.as_ptr()
     }

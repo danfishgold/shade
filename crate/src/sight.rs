@@ -86,6 +86,47 @@ impl Sight {
             .map(|a| Point { x: a.0.x, y: a.0.y })
             .collect()
     }
+
+    pub fn isometric_sight(&self, angle: f64) -> Vec<Point> {
+        let dx = f64::cos(angle);
+        let dy = f64::sin(angle);
+        // normal
+        let n = Point { x: dy, y: -dx };
+
+        let sources = (&self.unique_points).iter().flat_map(|pt: &Point| {
+            vec![
+                Point {
+                    x: pt.x + 0.0001 * n.x,
+                    y: pt.y + 0.0001 * n.y,
+                },
+                Point {
+                    x: pt.x - 0.0001 * n.x,
+                    y: pt.y - 0.0001 * n.y,
+                },
+            ]
+        });
+
+        let mut projected_intersects: Vec<(Intersection, f64)> = vec![];
+        for source in sources {
+            let ray = Segment {
+                a: source,
+                b: Point {
+                    x: source.x + dx,
+                    y: source.y + dy,
+                },
+            };
+
+            if let Some(intersect) = closest_intersect(&self.segments, &ray) {
+                projected_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
+            }
+        }
+
+        projected_intersects.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        projected_intersects
+            .iter()
+            .map(|a| Point { x: a.0.x, y: a.0.y })
+            .collect()
+    }
 }
 
 fn get_intersection(ray: &Segment, segment: &Segment) -> Option<Intersection> {
