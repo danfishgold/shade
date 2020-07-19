@@ -1,4 +1,5 @@
 import buttGlpyhs from './butts.json'
+import { pathDataToPolys } from 'svg-path-to-polygons'
 
 export interface Point {
   x: number
@@ -130,37 +131,23 @@ export function glyphToPathD(glyph: Glyph): string {
   return glyph.commands.map(commandToString).join(' ')
 }
 
-export function splitPathDIntoDisjointParts(d: string): string[] {
-  return d
-    .split(' Z')
-    .slice(0, -1)
-    .map((segment) => segment + 'Z')
+export function polygonsFromPathD(d: string): Point[][] {
+  const polygonPointPairs: [number, number][][] = pathDataToPolys(d, {
+    tolerance: 0.5,
+    decimals: 1,
+  })
+  return polygonPointPairs.map((polygon) => {
+    return polygon.map(([x, y]) => {
+      return { x, y }
+    })
+  })
 }
 
-export function svgPathFromD(d: string): SVGPathElement {
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-  path.setAttribute('d', d)
-  return path
-}
-
-export function svgPathToPoints(
-  path: SVGPathElement,
-  pointDistance: number
-): Point[] {
-  const length = path.getTotalLength()
-  const pointCount = Math.ceil(length / pointDistance)
-  return Array(pointCount)
-    .fill(null)
-    .map((_, pointIndex) =>
-      path.getPointAtLength((pointIndex / pointCount) * length)
-    )
-}
-
-export function pathSegments(pathPoints: Point[]): Segment[] {
-  return pathPoints.map((_, index: number) => {
+export function polygonSegments(polygon: Point[]): Segment[] {
+  return polygon.map((_, index: number) => {
     return {
-      a: pathPoints[index],
-      b: pathPoints[(index + 1) % pathPoints.length],
+      a: polygon[index],
+      b: polygon[(index + 1) % polygon.length],
     }
   })
 }

@@ -42,10 +42,9 @@ export default class SightCanvas {
 
   private initializeSight(): WasmSight {
     const glyphSegments = this.glyphPathDs
-      .flatMap(Glyphs.splitPathDIntoDisjointParts)
-      .map(Glyphs.svgPathFromD)
-      .map((path) => Glyphs.svgPathToPoints(path, 3))
-      .flatMap(Glyphs.pathSegments)
+      .flatMap(Glyphs.polygonsFromPathD)
+      .flatMap(Glyphs.polygonSegments)
+    console.log(`${glyphSegments.length} segments`)
 
     const segments = glyphSegments.concat(this.borderSegments())
 
@@ -71,7 +70,6 @@ export default class SightCanvas {
     this.dpr = window.devicePixelRatio || 1
     setCanvasDPR(this.canvas, this.dpr)
     const { dx, dy, scale } = this.glyphMetrics(glyphs)
-    console.log(dx, dy)
     this.glyphPathDs = glyphs
       .map((glyph) => Glyphs.transformGlyph(glyph, dx, dy, scale))
       .map(Glyphs.glyphToPathD)
