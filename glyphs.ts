@@ -58,6 +58,61 @@ export async function fetchGlyphs(text: string): Promise<Glyph[]> {
   return await glyphResponse.json()
 }
 
+export function transformGlyph(
+  glyph: Glyph,
+  dx: number,
+  dy: number,
+  scale: number
+): Glyph {
+  return {
+    boundingBox: {
+      x1: dx + scale * glyph.boundingBox.x1,
+      y1: dy + scale * glyph.boundingBox.y1,
+      x2: dx + scale * glyph.boundingBox.x2,
+      y2: dy + scale * glyph.boundingBox.y2,
+    },
+    commands: glyph.commands.map((cmd) => transformCommand(cmd, dx, dy, scale)),
+  }
+}
+
+function transformCommand(
+  cmd: Command,
+  dx: number,
+  dy: number,
+  scale: number
+): Command {
+  switch (cmd.type) {
+    case 'Z': {
+      return cmd
+    }
+    case 'M': {
+      return {
+        type: 'M',
+        x: dx + scale * cmd.x,
+        y: dy + scale * cmd.y,
+      }
+    }
+    case 'L': {
+      return {
+        type: 'L',
+        x: dx + scale * cmd.x,
+        y: dy + scale * cmd.y,
+      }
+    }
+    case 'C': {
+      return {
+        type: 'C',
+        x1: dx + scale * cmd.x1,
+        y1: dy + scale * cmd.y1,
+        x2: dx + scale * cmd.x2,
+        y2: dy + scale * cmd.y2,
+        x: dx + scale * cmd.x,
+        y: dy + scale * cmd.y,
+      }
+    }
+  }
+}
+
 function commandToString(command: Command): string {
   switch (command.type) {
     case 'Z':

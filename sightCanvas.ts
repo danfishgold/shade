@@ -13,17 +13,16 @@ export default class SightCanvas {
 
   private glyphMetrics(
     glyphs: Glyph[]
-  ): { x0: number; y0: number; scale: number } {
-    const boundingBox = Glyphs.boundingBox(glyphs)
-    const yScale = this.canvas.height / boundingBox.height
-    const xScale = this.canvas.width / boundingBox.width
-    const scale = 0.5 * Math.min(xScale, yScale)
-    const x0 =
-      this.canvas.width / 2 - scale * (boundingBox.width / 2 + boundingBox.x0)
-    const y0 =
-      this.canvas.height / 2 - scale * (boundingBox.height / 2 + boundingBox.y0)
+  ): { dx: number; dy: number; scale: number } {
+    const bb = Glyphs.boundingBox(glyphs)
+    const yScale = this.canvas.height / bb.height
+    const xScale = this.canvas.width / bb.width
+    const scale = (0.5 / this.dpr) * Math.min(xScale, yScale)
+    const dx = this.canvas.width / 2 / this.dpr - scale * (bb.width / 2 + bb.x0)
+    const dy =
+      this.canvas.height / 2 / this.dpr - scale * (bb.height / 2 + bb.y0)
 
-    return { x0, y0, scale }
+    return { dx, dy, scale }
   }
 
   private borderSegments() {
@@ -41,22 +40,11 @@ export default class SightCanvas {
     ]
   }
 
-  private initializeSight(glyphs: Glyph[]): WasmSight {
-    const { x0, y0, scale } = this.glyphMetrics(glyphs)
+  private initializeSight(): WasmSight {
     const glyphSegments = this.glyphPathDs
       .flatMap(Glyphs.splitPathDIntoDisjointParts)
       .map(Glyphs.svgPathFromD)
-      .map((path) => Glyphs.svgPathToPoints(path, 2))
-      .map((path: Point[]): Point[] => {
-        return path.map(
-          ({ x, y }: Point): Point => {
-            return {
-              x: (x0 + x * scale) / this.dpr,
-              y: (y0 + y * scale) / this.dpr,
-            }
-          }
-        )
-      })
+      .map((path) => Glyphs.svgPathToPoints(path, 3))
       .flatMap(Glyphs.pathSegments)
 
     const segments = glyphSegments.concat(this.borderSegments())
@@ -82,9 +70,16 @@ export default class SightCanvas {
     this.canvas = canvas
     this.dpr = window.devicePixelRatio || 1
     setCanvasDPR(this.canvas, this.dpr)
-    this.glyphPathDs = glyphs.map(Glyphs.glyphToPathD)
-    this.sight = this.initializeSight(glyphs)
-    this.mouse = { x: canvas.width / 2, y: canvas.height / 2 }
+    const { dx, dy, scale } = this.glyphMetrics(glyphs)
+    console.log(dx, dy)
+    this.glyphPathDs = glyphs
+      .map((glyph) => Glyphs.transformGlyph(glyph, dx, dy, scale))
+      .map(Glyphs.glyphToPathD)
+    this.sight = this.initializeSight()
+    this.mouse = {
+      x: canvas.width / 2 / this.dpr,
+      y: canvas.height / 2 / this.dpr,
+    }
     this.canvas.onmousemove = this.onMouseMove.bind(this)
     this.updateCanvas = true
   }
@@ -100,18 +95,7 @@ export default class SightCanvas {
     const ctx = this.canvas.getContext('2d')
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    // // Draw glyphs
-    // this.glyphPoints.forEach((glyph, idx) => {
-    //   ctx.fillStyle = idx == 1 ? '#000' : '#ddd'
-    //   ctx.beginPath()
-    //   ctx.moveTo(glyph[0].x, glyph[0].y)
-    //   for (const { x, y } of glyph.slice(1)) {
-    //     ctx.lineTo(x, y)
-    //   }
-    //   ctx.fill()
-    // })
-
-    // Sight Polygons
+    // Draw Polygons
     const fuzzyRadius = 5
     const ringCount = 3
     const sources = Array(ringCount)
@@ -138,7 +122,14 @@ export default class SightCanvas {
       drawPolygon(polygon, ctx, colors[idx])
     })
 
-    // Draw red dots
+    // Draw glyphs
+    this.glyphPathDs.forEach((glyphD) => {
+      ctx.fillStyle = '#ddd'
+      const path = new Path2D(glyphD)
+      ctx.fill(path)
+    })
+
+    // Draw sources
     ctx.fillStyle = '#dd3838'
     sources.map((origin) => {
       ctx.beginPath()
