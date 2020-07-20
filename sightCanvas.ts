@@ -27,16 +27,22 @@ export default class SightCanvas {
 
   private borderSegments() {
     return [
-      { a: { x: 0, y: 0 }, b: { x: this.canvas.width, y: 0 } },
+      { a: { x: 0, y: 0 }, b: { x: this.canvas.width / this.dpr, y: 0 } },
       {
-        a: { x: this.canvas.width, y: 0 },
-        b: { x: this.canvas.width, y: this.canvas.height },
+        a: { x: this.canvas.width / this.dpr, y: 0 },
+        b: {
+          x: this.canvas.width / this.dpr,
+          y: this.canvas.height / this.dpr,
+        },
       },
       {
-        a: { x: this.canvas.width, y: this.canvas.height },
-        b: { x: 0, y: this.canvas.height },
+        a: {
+          x: this.canvas.width / this.dpr,
+          y: this.canvas.height / this.dpr,
+        },
+        b: { x: 0, y: this.canvas.height / this.dpr },
       },
-      { a: { x: 0, y: this.canvas.height }, b: { x: 0, y: 0 } },
+      { a: { x: 0, y: this.canvas.height / this.dpr }, b: { x: 0, y: 0 } },
     ]
   }
 
@@ -103,7 +109,7 @@ export default class SightCanvas {
     const ctx = this.canvas.getContext('2d')
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    const isometric = false
+    const isometric = true
 
     // Draw Polygons
     const fuzzyRadius = 5
@@ -126,8 +132,8 @@ export default class SightCanvas {
     sources.forEach((source, idx) => {
       if (isometric) {
         const angle = Math.atan2(
-          source.y - this.canvas.height / 2 / this.dpr,
-          source.x - this.canvas.width / 2 / this.dpr
+          this.canvas.height / 2 / this.dpr - source.y,
+          this.canvas.width / 2 / this.dpr - source.x
         )
         this.sight.generate_isometric_polygon(angle)
       } else {

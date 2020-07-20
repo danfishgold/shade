@@ -3,11 +3,11 @@ extern crate web_sys;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-// macro_rules! log {
-//     ( $( $t:tt )* ) => {
-//         web_sys::console::log_1(&format!( $( $t )* ).into());
-//     }
-// }
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {
@@ -89,8 +89,9 @@ impl Sight {
                     .iter()
                     .chain(self.border_segments.iter()),
                 &ray,
+                false,
             ) {
-                angled_intersects.push((intersect, angle))
+                angled_intersects.push((intersect, angle));
             }
         }
 
@@ -107,7 +108,7 @@ impl Sight {
         // normal
         let n = Point { x: dy, y: -dx };
 
-        let sources = self
+        let inner_sources = self
             .unique_inner_points
             .iter()
             .chain(self.unique_border_points.iter())
@@ -125,7 +126,7 @@ impl Sight {
             });
 
         let mut projected_intersects: Vec<(Intersection, f64)> = vec![];
-        for source in sources {
+        for source in inner_sources {
             let ray = Segment {
                 a: source,
                 b: Point {
@@ -134,25 +135,55 @@ impl Sight {
                 },
             };
 
-            if let Some(intersect) = closest_intersect(
-                self.inner_segments
-                    .iter()
-                    .chain(self.border_segments.iter()),
-                &ray,
-            ) {
+            if let Some(intersect) = closest_intersect(self.inner_segments.iter(), &ray, true) {
+                projected_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
+            } else if let Some(intersect) =
+                farthest_intersect(self.border_segments.iter(), &ray, false)
+            {
+                projected_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
+            }
+        }
+        for source in self.unique_border_points.iter() {
+            let ray = Segment {
+                a: source.clone(),
+                b: Point {
+                    x: source.x + dx,
+                    y: source.y + dy,
+                },
+            };
+            if let Some(intersect) = farthest_intersect(self.border_segments.iter(), &ray, true) {
                 projected_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
             }
         }
 
+        let mut back_intersects: Vec<(Intersection, f64)> = vec![];
+        for source in self.unique_border_points.iter() {
+            let ray = Segment {
+                a: source.clone(),
+                b: Point {
+                    x: source.x + dx,
+                    y: source.y + dy,
+                },
+            };
+            if let Some(intersect) = closest_intersect(self.border_segments.iter(), &ray, true) {
+                back_intersects.push((intersect, n.x * intersect.x + n.y * intersect.y))
+            }
+        }
+
         projected_intersects.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        projected_intersects
-            .iter()
+        back_intersects.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        let all_intersects = projected_intersects.iter().chain(back_intersects.iter());
+        all_intersects
             .map(|a| Point { x: a.0.x, y: a.0.y })
             .collect()
     }
 }
 
-fn get_intersection(ray: &Segment, segment: &Segment) -> Option<Intersection> {
+fn get_intersection(
+    ray: &Segment,
+    segment: &Segment,
+    allow_negatives: bool,
+) -> Option<Intersection> {
     // RAY in parametric: Point + Delta*t1
     let r_px = ray.a.x;
     let r_py = ray.a.y;
@@ -179,10 +210,14 @@ fn get_intersection(ray: &Segment, segment: &Segment) -> Option<Intersection> {
     // ==> s_px*r_dy + s_dx*t2*r_dy - r_px*r_dy = s_py*r_dx + s_dy*t2*r_dx - r_py*r_dx
     // ==> t2 = (r_dx*(s_py-r_py) + r_dy*(r_px-s_px))/(s_dx*r_dy - s_dy*r_dx)
     let t2 = (r_dx * (s_py - r_py) + r_dy * (r_px - s_px)) / (s_dx * r_dy - s_dy * r_dx);
-    let t1 = (s_px + s_dx * t2 - r_px) / r_dx;
+    let t1 = if r_dx == 0.0 {
+        (s_py + s_dy * t2 - r_py) / r_dy
+    } else {
+        (s_px + s_dx * t2 - r_px) / r_dx
+    };
 
     // Must be within parametic whatevers for RAY/SEGMENT
-    if t1 < 0.0 {
+    if !allow_negatives && t1 < 0.0 {
         return None;
     }
     if t2 < 0.0 || t2 > 1.0 {
@@ -206,15 +241,42 @@ fn unique_points_from_segments(segments: &Vec<Segment>) -> Vec<Point> {
     return point_set.into_iter().collect();
 }
 
-fn closest_intersect<'a, Iter>(segments: Iter, ray: &Segment) -> Option<Intersection>
+fn closest_intersect<'a, Iter>(
+    segments: Iter,
+    ray: &Segment,
+    allow_negatives: bool,
+) -> Option<Intersection>
 where
     Iter: Iterator<Item = &'a Segment>,
 {
     let mut closest: Option<Intersection> = None;
     for segment in segments {
-        if let Some(intersect) = get_intersection(ray, segment) {
+        if let Some(intersect) = get_intersection(ray, segment, allow_negatives) {
             if let Some(closest_int) = &closest {
                 if intersect.param < closest_int.param {
+                    closest = Some(intersect);
+                }
+            } else {
+                closest = Some(intersect);
+            }
+        }
+    }
+    closest
+}
+
+fn farthest_intersect<'a, Iter>(
+    segments: Iter,
+    ray: &Segment,
+    allow_negatives: bool,
+) -> Option<Intersection>
+where
+    Iter: Iterator<Item = &'a Segment>,
+{
+    let mut closest: Option<Intersection> = None;
+    for segment in segments {
+        if let Some(intersect) = get_intersection(ray, segment, allow_negatives) {
+            if let Some(closest_int) = &closest {
+                if intersect.param > closest_int.param {
                     closest = Some(intersect);
                 }
             } else {
