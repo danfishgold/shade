@@ -50,9 +50,6 @@ interface CommandZ {
 type Command = CommandC | CommandM | CommandL | CommandZ
 
 export async function fetchGlyphs(text: string): Promise<Glyph[]> {
-  if (text === 'butts') {
-    return buttGlpyhs as Glyph[]
-  }
   const glyphResponse = await fetch(
     `https://svg-font-stuff.glitch.me/glyphs/${text}`
   )

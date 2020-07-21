@@ -10,6 +10,7 @@ export default class SightCanvas {
   private mouse: Point
   private updateCanvas: boolean
   private sight: WasmSight
+  private isometric: boolean
 
   private glyphMetrics(
     glyphs: Glyph[]
@@ -50,7 +51,6 @@ export default class SightCanvas {
     const glyphSegments = this.glyphPathDs
       .flatMap(Glyphs.polygonsFromPathD)
       .flatMap(Glyphs.polygonSegments)
-    console.log(`${glyphSegments.length} segments`)
 
     const borders = this.borderSegments()
     const sight = WasmSight.new()
@@ -81,8 +81,9 @@ export default class SightCanvas {
     return sight
   }
 
-  constructor(glyphs: Glyph[], canvas: HTMLCanvasElement) {
+  constructor(glyphs: Glyph[], canvas: HTMLCanvasElement, isometric: boolean) {
     this.canvas = canvas
+    this.isometric = isometric
     this.dpr = window.devicePixelRatio || 1
     setCanvasDPR(this.canvas, this.dpr)
     const { dx, dy, scale } = this.glyphMetrics(glyphs)
@@ -109,11 +110,9 @@ export default class SightCanvas {
     const ctx = this.canvas.getContext('2d')
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    const isometric = true
-
     // Draw Polygons
     const fuzzyRadius = 5
-    const ringCount = isometric ? 0 : 3
+    const ringCount = this.isometric ? 0 : 3
     const sources = Array(ringCount)
       .fill(null)
       .map((_, idx) => {
@@ -125,12 +124,12 @@ export default class SightCanvas {
       })
       .concat(this.mouse)
 
-    const colors = isometric
+    const colors = this.isometric
       ? ['white']
       : ['magenta', 'cyan', 'yellow', 'white']
     // const colors = ['red', 'cyan', 'red', 'cyan', 'red', 'cyan', 'white']
     sources.forEach((source, idx) => {
-      if (isometric) {
+      if (this.isometric) {
         const angle = Math.atan2(
           this.canvas.height / 2 / this.dpr - source.y,
           this.canvas.width / 2 / this.dpr - source.x
