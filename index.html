@@ -5,13 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
+      @font-face {
+        font-family: 'Proxima Nova';
+        src: url('https://files.dan.city/proxima-nova-for-shade/regular.otf');
+      }
+
+      html {
+        height: 100%;
+        font-family: 'Proxima Nova';
+      }
       body {
         margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        margin: 10px;
+
+        mix-blend-mode: difference;
+        background: black;
+        color: white;
+      }
+
+      footer a {
+        color: white;
       }
     </style>
   </head>
   <body>
-    <canvas id="canvas" width="500" height="300" style="background: #000;" />
-    <script src="script.ts"></script>
+    <canvas id="canvas"></canvas>
+    <footer>
+      <a href="https://github.com/danfishgold/shade">Made</a> with ♥︎ by
+      <a href="https://danfishgold.com">Dan Fishgold</a>
+    </footer>
+    <script src="ts/index.ts"></script>
   </body>
 </html>

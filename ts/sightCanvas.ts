@@ -1,16 +1,35 @@
 import { Glyph, Point } from './glyphs'
 import * as Glyphs from './glyphs'
-import { WasmSight, rust_memory } from './crate/Cargo.toml'
-// import { WasmSight, rust_memory } from './crate/pkg/shady_characters'
+import { WasmSight, rust_memory } from '../crate/Cargo.toml'
 
 export default class SightCanvas {
   private glyphPathDs: string[]
   private canvas: HTMLCanvasElement
   private dpr: number
-  private mouse: Point
+  private mouse: Point | null
   private updateCanvas: boolean
   private sight: WasmSight
   private isometric: boolean
+
+  constructor(glyphs: Glyph[], canvas: HTMLCanvasElement, isometric: boolean) {
+    this.canvas = canvas
+    this.isometric = isometric
+    this.dpr = window.devicePixelRatio || 1
+    setCanvasDPR(this.canvas, this.dpr)
+    const { dx, dy, scale } = this.glyphMetrics(glyphs)
+    this.glyphPathDs = glyphs
+      .map((glyph) => Glyphs.transformGlyph(glyph, dx, dy, scale))
+      .map(Glyphs.glyphToPathD)
+    this.sight = this.initializeSight()
+    this.mouse = null
+    this.canvas.onmousemove = this.onMouseMove.bind(this)
+    this.canvas.ontouchstart = this.onTouchStart.bind(this)
+    this.canvas.ontouchend = this.onTouchEnd.bind(this)
+    this.canvas.ontouchcancel = this.onTouchEnd.bind(this)
+    this.canvas.ontouchmove = this.onMouseMove.bind(this)
+
+    this.updateCanvas = true
+  }
 
   private glyphMetrics(
     glyphs: Glyph[]
@@ -81,71 +100,76 @@ export default class SightCanvas {
     return sight
   }
 
-  constructor(glyphs: Glyph[], canvas: HTMLCanvasElement, isometric: boolean) {
-    this.canvas = canvas
-    this.isometric = isometric
-    this.dpr = window.devicePixelRatio || 1
-    setCanvasDPR(this.canvas, this.dpr)
-    const { dx, dy, scale } = this.glyphMetrics(glyphs)
-    this.glyphPathDs = glyphs
-      .map((glyph) => Glyphs.transformGlyph(glyph, dx, dy, scale))
-      .map(Glyphs.glyphToPathD)
-    this.sight = this.initializeSight()
-    this.mouse = {
-      x: canvas.width / 2 / this.dpr,
-      y: canvas.height / 2 / this.dpr,
-    }
-    this.canvas.onmousemove = this.onMouseMove.bind(this)
+  private onMouseMove(event: MouseEvent | TouchEvent) {
+    event.preventDefault()
+    this.mouse = this.eventPosition(event)
     this.updateCanvas = true
   }
 
-  private onMouseMove(event: MouseEvent) {
-    this.mouse.x = event.clientX / this.dpr
-    this.mouse.y = event.clientY / this.dpr
+  private onTouchStart(event: MouseEvent | TouchEvent) {
+    event.preventDefault()
+    this.mouse = this.eventPosition(event)
     this.updateCanvas = true
+  }
+
+  private onTouchEnd(event: MouseEvent | TouchEvent) {
+    event.preventDefault()
+    this.mouse = null
+    this.updateCanvas = true
+  }
+
+  private eventPosition(event: MouseEvent | TouchEvent): Point {
+    if (event instanceof MouseEvent) {
+      return {
+        x: event.clientX,
+        y: event.clientY,
+      }
+    } else {
+      return {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+      }
+    }
   }
 
   private draw() {
-    // Clear canvas
+    // Reset canvas
     const ctx = this.canvas.getContext('2d')
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    ctx.fillStyle = 'black'
+    ctx.rect(0, 0, this.canvas.width, this.canvas.height)
+    ctx.fill()
 
-    // Draw Polygons
-    const fuzzyRadius = 5
-    const ringCount = this.isometric ? 0 : 3
-    const sources = Array(ringCount)
-      .fill(null)
-      .map((_, idx) => {
-        const angle = (Math.PI * 2 * idx) / ringCount
-        return {
-          x: this.mouse.x + Math.cos(angle) * fuzzyRadius,
-          y: this.mouse.y + Math.sin(angle) * fuzzyRadius,
-        }
-      })
-      .concat(this.mouse)
-
-    const colors = this.isometric
-      ? ['white']
-      : ['magenta', 'cyan', 'yellow', 'white']
-    // const colors = ['red', 'cyan', 'red', 'cyan', 'red', 'cyan', 'white']
-    sources.forEach((source, idx) => {
+    if (this.mouse) {
+      // Draw polygons
       if (this.isometric) {
-        const angle = Math.atan2(
-          this.canvas.height / 2 / this.dpr - source.y,
-          this.canvas.width / 2 / this.dpr - source.x
+        const mouseAngle = Math.atan2(
+          this.canvas.height / 2 / this.dpr - this.mouse.y,
+          this.canvas.width / 2 / this.dpr - this.mouse.x
         )
-        this.sight.generate_isometric_polygon(angle)
+        const polygon = this.isometricPolygon(mouseAngle)
+        drawPolygon(polygon, ctx, 'white')
       } else {
-        this.sight.generate_polygon(source.x, source.y)
+        const fuzzyRadius = 5 * this.dpr
+        const colors = ['cyan', 'magenta', 'yellow']
+        const sourcesAndColors: [Point, string][] = colors
+          .map((color, idx): [Point, string] => {
+            const angle = (Math.PI * 2 * idx) / 3
+            return [
+              {
+                x: this.mouse.x + Math.cos(angle) * fuzzyRadius,
+                y: this.mouse.y + Math.sin(angle) * fuzzyRadius,
+              },
+              color,
+            ]
+          })
+          .concat([[this.mouse, 'white']])
+
+        for (const [source, color] of sourcesAndColors) {
+          const polygon = this.nonisometricPolygon(source)
+          drawPolygon(polygon, ctx, color)
+        }
       }
-      const polygonSize = this.sight.polygon_size()
-      const polygon = new Float64Array(
-        rust_memory().buffer,
-        this.sight.polygon(),
-        polygonSize * 2
-      )
-      drawPolygon(polygon, ctx, colors[idx])
-    })
+    }
 
     // Draw glyphs
     this.glyphPathDs.forEach((glyphD) => {
@@ -153,14 +177,26 @@ export default class SightCanvas {
       const path = new Path2D(glyphD)
       ctx.fill(path)
     })
+  }
 
-    // Draw sources
-    ctx.fillStyle = '#dd3838'
-    sources.map((origin) => {
-      ctx.beginPath()
-      ctx.arc(origin.x, origin.y, 2, 0, 2 * Math.PI, false)
-      ctx.fill()
-    })
+  private isometricPolygon(angle: number): Float64Array {
+    this.sight.generate_isometric_polygon(angle)
+    const polygonSize = this.sight.polygon_size()
+    return new Float64Array(
+      rust_memory().buffer,
+      this.sight.polygon(),
+      polygonSize * 2
+    )
+  }
+
+  private nonisometricPolygon(source: Point): Float64Array {
+    this.sight.generate_polygon(source.x, source.y)
+    const polygonSize = this.sight.polygon_size()
+    return new Float64Array(
+      rust_memory().buffer,
+      this.sight.polygon(),
+      polygonSize * 2
+    )
   }
 
   drawLoop(): void {

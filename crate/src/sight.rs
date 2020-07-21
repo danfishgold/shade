@@ -3,11 +3,11 @@ extern crate web_sys;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-macro_rules! log {
-    ( $( $t:tt )* ) => {
-        web_sys::console::log_1(&format!( $( $t )* ).into());
-    }
-}
+// macro_rules! log {
+//     ( $( $t:tt )* ) => {
+//         web_sys::console::log_1(&format!( $( $t )* ).into());
+//     }
+// }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {

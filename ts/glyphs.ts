@@ -1,4 +1,3 @@
-import buttGlpyhs from './butts.json'
 import { pathDataToPolys } from 'svg-path-to-polygons'
 
 export interface Point {
