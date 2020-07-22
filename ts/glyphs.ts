@@ -49,9 +49,10 @@ interface CommandZ {
 type Command = CommandC | CommandM | CommandL | CommandZ
 
 export async function fetchGlyphs(text: string): Promise<Glyph[]> {
-  const glyphResponse = await fetch(
-    `https://svg-font-stuff.glitch.me/glyphs/${text}`
-  )
+  const glyphResponse = await fetch(`.netlify/functions/letter-glyphs`, {
+    method: 'POST',
+    body: text,
+  })
   return await glyphResponse.json()
 }
 
