@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "live": "parcel index.html",
-    "build": "parcel build index.html"
+    "live": "parcel index.html fonts/*",
+    "build": "parcel build index.html fonts/*"
   },
   "dependencies": {
     "parcel": "^1.12.4",

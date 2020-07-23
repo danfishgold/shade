@@ -1,7 +1,7 @@
 const fetch = require('node-fetch')
 const opentype = require('opentype.js')
 
-const fontUrl = 'https://files.dan.city/proxima-nova-for-shade/bold.otf'
+const fontUrl = `${process.env['URL']}/fonts/Montserrat-ExtraBold.otf`
 
 exports.handler = async function (event) {
   try {
